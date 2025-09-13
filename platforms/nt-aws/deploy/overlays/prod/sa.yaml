@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::547568624982:role/plasma-lms-course-service-prod-pod-role
+  name: plasma-lms-course-service-sa
+  namespace: lms-namespace

@@ -1,0 +1,76 @@
+name: Deploy to Amazon EKS prod
+
+on:
+  push:
+    branches:
+      - master
+    paths-ignore:
+      - '**/README.md'
+
+jobs:
+  deploy_to_prod:
+    name: Deploy to prod
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      AWS_REGION: us-west-2
+      EKS_CLUSTER_NAME: portal_eks_cluster
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::547568624982:role/infra-protal-prod-github-actions-role 
+          aws-region: ${{ env.AWS_REGION }}
+          
+      - name: Build with Gradle
+        run: ./gradlew clean build
+  
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: plasma-services-repo
+          IMAGE_TAG: "plasma-core-service-${{ github.sha }}"
+        run: |
+          # Build a docker container and
+          # push it to ECR so that it can
+          # be deployed to EKS.
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "::set-output name=image::$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+      - name: Setup kubeconfig
+        id: setup-kubeconfig
+        run: |
+          aws eks --region $AWS_REGION update-kubeconfig --name $EKS_CLUSTER_NAME
+
+      - name: Deploy k8s yaml
+        id: deploy-k8s-yaml
+        env:
+          K8S_YAML_DIR: ./platforms/nt-aws/deploy/overlays/prod
+          IMAGE_NAME: ${{ steps.build-image.outputs.image }}
+        run: |
+          chmod +x ./scripts/deploy-k8s.sh 
+          ./scripts/deploy-k8s.sh
+        shell: bash

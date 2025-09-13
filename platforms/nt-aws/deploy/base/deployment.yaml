@@ -1,0 +1,28 @@
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: plasma-lms-course-service
+  namespace: lms-namespace
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app-name: plasma-lms-course-service
+  template:
+    metadata:
+      labels:
+        app-name: plasma-lms-course-service
+    spec:
+      containers:
+        - name: plasma-lms-course-service
+          image: image_name
+          resources:
+            requests:
+              cpu: 500m
+              memory: 750Mi
+            limits:
+              cpu: 1000m
+              memory: 1000Mi
+          ports:
+            - containerPort: 8080
